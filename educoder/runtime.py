@@ -127,6 +127,30 @@ class EduCoder:
             "workspace_changed": False,
             "prefix_changed": False,
         }
+        self._student_trace_store = None
+
+    def _filter_if_student(self, text):
+        if self.mode == "student":
+            from .pii_filter import filter_pii
+
+            return filter_pii(text)
+        return text
+
+    def _log_student_trace(self, query, response, code_snippet="", error_traceback=""):
+        if self.mode != "student":
+            return
+        from .trace_db import StudentTraceStore
+
+        if self._student_trace_store is None:
+            db_path = Path(self.workspace.repo_root) / ".educoder" / "traces.db"
+            self._student_trace_store = StudentTraceStore(db_path)
+        self._student_trace_store.record(
+            session_id=self.session["id"],
+            query=query,
+            code_snippet=code_snippet,
+            error_traceback=error_traceback,
+            agent_response=response,
+        )
 
     @classmethod
     def from_session(cls, model_client, workspace, session_store, session_id, **kwargs):
@@ -457,6 +481,8 @@ class EduCoder:
         这里就是最关键的入口。
         """
         run_started_at = time.monotonic()
+        original_message = user_message
+        user_message = self._filter_if_student(user_message)
         self.memory.set_task_summary(user_message)
         self.record({"role": "user", "content": user_message, "created_at": now()})
 
@@ -586,6 +612,7 @@ class EduCoder:
                 },
             )
             self.run_store.write_report(task_state, self.redact_artifact(self.build_report(task_state)))
+            self._log_student_trace(original_message, final)
             return final
 
         if attempts >= max_attempts and tool_steps < self.max_steps:
@@ -607,6 +634,7 @@ class EduCoder:
             },
         )
         self.run_store.write_report(task_state, self.redact_artifact(self.build_report(task_state)))
+        self._log_student_trace(original_message, final)
         return final
 
     def run_tool(self, name, args):
