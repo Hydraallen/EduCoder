@@ -148,7 +148,7 @@ class EduCoder:
         del bucket[:-limit]
 
     def build_tools(self):
-        return toolkit.build_tool_registry(self)
+        return toolkit.build_tool_registry(self, mode=self.mode)
 
     def tool_signature(self):
         payload = []

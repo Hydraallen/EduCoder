@@ -61,13 +61,18 @@ TOOL_EXAMPLES = {
 }
 
 
-def build_tool_registry(agent):
+def build_tool_registry(agent, mode="developer"):
     # 工具不是动态发现的，而是显式注册的。
     # 这样模型看到的是一个有边界、可审计的动作集合。
-    tools = {
-        name: {**spec, "run": partial(_TOOL_RUNNERS[name], agent)}
-        for name, spec in BASE_TOOL_SPECS.items()
-    }
+    if mode == "student":
+        _STUDENT_BLOCKED = {"write_file", "patch_file", "run_shell"}
+        specs = {n: s for n, s in BASE_TOOL_SPECS.items() if n not in _STUDENT_BLOCKED}
+        tools = {n: {**s, "run": partial(_TOOL_RUNNERS[n], agent)} for n, s in specs.items()}
+        from .sandbox import SANDBOX_TOOL_SPEC, tool_run_sandbox_code
+
+        tools["run_sandbox_code"] = {**SANDBOX_TOOL_SPEC, "run": partial(tool_run_sandbox_code, agent)}
+    else:
+        tools = {name: {**spec, "run": partial(_TOOL_RUNNERS[name], agent)} for name, spec in BASE_TOOL_SPECS.items()}
     # 子 agent 是刻意做成受限能力的：一旦深度耗尽，
     # 就连 delegate 这个工具都不再暴露给模型。
     if agent.depth < agent.max_depth:
