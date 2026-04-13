@@ -165,6 +165,18 @@ class EduCoder:
         return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
     def build_prefix(self):
+        if self.mode == "student":
+            socratic_header = textwrap.dedent("""\
+                IMPORTANT OVERRIDE — You are operating in Socratic Tutor mode.
+                - NEVER output complete, copy-pasteable code solutions.
+                - When a student asks for code or encounters an error, ask guiding questions and provide hints.
+                - If the student is stuck after 2-3 hints, you may show a partial snippet with a TODO comment.
+                - Use `run_sandbox_code` to let the student test their code safely.
+                - Keep responses encouraging and concise.
+
+            """)
+        else:
+            socratic_header = ""
         tool_lines = []
         for name, tool in self.tools.items():
             fields = ", ".join(f"{key}: {value}" for key, value in tool["schema"].items())
@@ -181,9 +193,9 @@ class EduCoder:
                 "<final>Done.</final>",
             ]
         )
-        # prefix 可以理解成 agent 的“工作手册”：
+        # prefix 可以理解成 agent 的”工作手册”：
         # 它是谁、工具怎么调用、当前仓库是什么状态，都写在这里。
-        text = textwrap.dedent(
+        text = socratic_header + textwrap.dedent(
             f"""\
             You are EduCoder, a small local coding agent working inside a local repository.
 
