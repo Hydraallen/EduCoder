@@ -1,6 +1,6 @@
 """命令行入口。
 
-这个模块负责把“用户怎么启动 pico”翻译成 runtime 能理解的对象：
+这个模块负责把“用户怎么启动 educoder”翻译成 runtime 能理解的对象：
 解析参数、挑模型后端、构建工作区快照、恢复或新建 session，
 最后进入 one-shot 或交互式循环。
 """
@@ -12,7 +12,7 @@ import sys
 import textwrap
 
 from .models import AnthropicCompatibleModelClient, OllamaModelClient, OpenAICompatibleModelClient
-from .runtime import Pico, SessionStore
+from .runtime import EduCoder, SessionStore
 from .workspace import WorkspaceContext, middle
 
 DEFAULT_SECRET_ENV_NAMES = (
@@ -31,7 +31,7 @@ WELCOME_ART = (
     "       /   ^   \\\\",
     "      /|       |\\\\",
 )
-WELCOME_NAME = "pico"
+WELCOME_NAME = "EduCoder"
 WELCOME_SUBTITLE = "local coding agent"
 WELCOME_STATUS = "calm shell, ready for work"
 HELP_DETAILS = textwrap.dedent(
@@ -167,7 +167,7 @@ def build_welcome(agent, model, host):
 
 
 def build_agent(args):
-    """根据 CLI 参数装配出一个可运行的 Pico 实例。
+    """根据 CLI 参数装配出一个可运行的 EduCoder 实例。
 
     为什么存在：
     命令行参数只是字符串和开关，runtime 需要的是已经装配好的对象图：
@@ -176,7 +176,7 @@ def build_agent(args):
 
     输入 / 输出：
     - 输入：`argparse` 解析后的 `args`
-    - 输出：一个新的 `Pico`，或一个从旧 session 恢复出来的 `Pico`
+    - 输出：一个新的 `EduCoder`，或一个从旧 session 恢复出来的 `EduCoder`
 
     在 agent 链路里的位置：
     它是整个程序启动链路里最靠近 runtime 的装配点。`main()` 先调它，
@@ -184,7 +184,7 @@ def build_agent(args):
     """
     # 这里是 CLI 到 runtime 的装配点：
     # 先整理 secret 名单，再采集工作区快照，随后决定是恢复旧 session
-    # 还是创建一个新的 Pico 实例。
+    # 还是创建一个新的 EduCoder 实例。
     configured_secret_names = set(DEFAULT_SECRET_ENV_NAMES)
     configured_secret_names.update(str(name).upper() for name in args.secret_env_names)
     extra_names = os.environ.get("PICO_SECRET_ENV_NAMES", "")
@@ -195,13 +195,13 @@ def build_agent(args):
             if item.strip()
         )
     workspace = WorkspaceContext.build(args.cwd)
-    store = SessionStore(workspace.repo_root + "/.pico/sessions")
+    store = SessionStore(workspace.repo_root + "/.educoder/sessions")
     model = _build_model_client(args)
     session_id = args.resume
     if session_id == "latest":
         session_id = store.latest()
     if session_id:
-        return Pico.from_session(
+        return EduCoder.from_session(
             model_client=model,
             workspace=workspace,
             session_store=store,
@@ -211,7 +211,7 @@ def build_agent(args):
             max_new_tokens=args.max_new_tokens,
             secret_env_names=sorted(configured_secret_names),
         )
-    return Pico(
+    return EduCoder(
         model_client=model,
         workspace=workspace,
         session_store=store,
@@ -279,7 +279,7 @@ def main(argv=None):
         # 交互模式：每次读取一条用户输入，交给同一个 agent，
         # 因此 session history 和 working memory 会跨轮延续。
         try:
-            user_input = input("\npico> ").strip()
+            user_input = input("\neducoder> ").strip()
         except (EOFError, KeyboardInterrupt):
             print("")
             return 0

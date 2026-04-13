@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 venv/
 uv.lock
+env
 
 # Packaging
 *.egg-info/
@@ -31,7 +32,7 @@ htmlcov/
 # Local scratch space
 tmp/
 .worktrees/
-.pico/
+.educoder/
 artifacts/
 readme_intro_locked/
 
@@ -42,4 +43,4 @@ docs/
 .DS_Store
 
 # Packaging metadata
-pico.egg-info/
+educoder.egg-info/

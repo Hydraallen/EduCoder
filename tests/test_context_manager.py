@@ -1,5 +1,5 @@
-from pico import FakeModelClient, MiniAgent, SessionStore, WorkspaceContext
-from pico.context_manager import ContextManager
+from educoder import EduCoder, FakeModelClient, SessionStore, WorkspaceContext
+from educoder.context_manager import ContextManager
 
 
 def build_workspace(tmp_path):
@@ -9,9 +9,9 @@ def build_workspace(tmp_path):
 
 def build_agent(tmp_path, outputs, **kwargs):
     workspace = build_workspace(tmp_path)
-    store = SessionStore(tmp_path / ".pico" / "sessions")
+    store = SessionStore(tmp_path / ".educoder" / "sessions")
     approval_policy = kwargs.pop("approval_policy", "auto")
-    return MiniAgent(
+    return EduCoder(
         model_client=FakeModelClient(outputs),
         workspace=workspace,
         session_store=store,
@@ -28,7 +28,7 @@ def test_context_manager_assembles_sections_in_expected_order(tmp_path):
 
     prompt, metadata = ContextManager(agent).build("Where is the deploy key?")
 
-    assert prompt.index("You are Mini-Coding-Agent") < prompt.index("Memory:")
+    assert prompt.index("You are EduCoder") < prompt.index("Memory:")
     assert prompt.index("Memory:") < prompt.index("Relevant memory:")
     assert prompt.index("Relevant memory:") < prompt.index("Transcript:")
     assert prompt.index("Transcript:") < prompt.index("Current user request:")
