@@ -194,6 +194,7 @@ def build_agent(args):
             for item in extra_names.split(",")
             if item.strip()
         )
+    mode = getattr(args, "mode", "developer")
     workspace = WorkspaceContext.build(args.cwd)
     store = SessionStore(workspace.repo_root + "/.educoder/sessions")
     model = _build_model_client(args)
@@ -210,6 +211,7 @@ def build_agent(args):
             max_steps=args.max_steps,
             max_new_tokens=args.max_new_tokens,
             secret_env_names=sorted(configured_secret_names),
+            mode=mode,
         )
     return EduCoder(
         model_client=model,
@@ -219,6 +221,7 @@ def build_agent(args):
         max_steps=args.max_steps,
         max_new_tokens=args.max_new_tokens,
         secret_env_names=sorted(configured_secret_names),
+        mode=mode,
     )
 
 
@@ -252,6 +255,12 @@ def build_arg_parser():
     parser.add_argument("--max-new-tokens", type=int, default=512, help="Maximum model output tokens per step.")
     parser.add_argument("--temperature", type=float, default=0.2, help="Sampling temperature sent to Ollama.")
     parser.add_argument("--top-p", type=float, default=0.9, help="Top-p sampling value sent to Ollama.")
+    parser.add_argument(
+        "--mode",
+        choices=("developer", "student", "teacher"),
+        default="developer",
+        help="Operating mode: developer (default), student, teacher.",
+    )
     return parser
 
 

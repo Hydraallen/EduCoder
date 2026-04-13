@@ -82,12 +82,14 @@ class EduCoder:
         shell_env_allowlist=None,
         secret_env_names=None,
         feature_flags=None,
+        mode="developer",
     ):
         self.model_client = model_client
         self.workspace = workspace
         self.root = Path(workspace.repo_root)
         self.session_store = session_store
         self.approval_policy = approval_policy
+        self.mode = mode
         self.max_steps = max_steps
         self.max_new_tokens = max_new_tokens
         self.depth = depth
