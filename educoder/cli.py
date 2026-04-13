@@ -185,6 +185,12 @@ def build_agent(args):
     # 这里是 CLI 到 runtime 的装配点：
     # 先整理 secret 名单，再采集工作区快照，随后决定是恢复旧 session
     # 还是创建一个新的 EduCoder 实例。
+    mode = getattr(args, "mode", "developer")
+    if mode == "teacher":
+        from .teacher import run_teacher_mode
+
+        run_teacher_mode(args)
+        raise SystemExit(0)
     configured_secret_names = set(DEFAULT_SECRET_ENV_NAMES)
     configured_secret_names.update(str(name).upper() for name in args.secret_env_names)
     extra_names = os.environ.get("PICO_SECRET_ENV_NAMES", "")
@@ -194,7 +200,6 @@ def build_agent(args):
             for item in extra_names.split(",")
             if item.strip()
         )
-    mode = getattr(args, "mode", "developer")
     workspace = WorkspaceContext.build(args.cwd)
     store = SessionStore(workspace.repo_root + "/.educoder/sessions")
     model = _build_model_client(args)
