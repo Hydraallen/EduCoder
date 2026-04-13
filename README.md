@@ -27,15 +27,15 @@
 
 CLI 帮助信息：
 
-![educoder help](assets/screenshots/educoder-help.png)
+![educoder help](assets/screenshots/pico-help.png)
 
 启动界面：
 
-![educoder start](assets/screenshots/educoder-start.png)
+![educoder start](assets/screenshots/pico-start.png)
 
 REPL 内置命令与会话路径：
 
-![educoder repl](assets/screenshots/educoder-repl.png)
+![educoder repl](assets/screenshots/pico-repl.png)
 
 ## 安装
 
