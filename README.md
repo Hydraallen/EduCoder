@@ -22,6 +22,10 @@
   - Ollama
   - OpenAI 兼容 Responses API
   - Anthropic 兼容 Messages API
+- 三种运行模式（`--mode`）：
+  - `developer`（默认）：完整工具访问，面向开发者
+  - `student`：苏格拉底式教学，禁用文件写入和 shell，提供 Docker 沙箱代码执行
+  - `teacher`：从学生交互数据生成分析报告，不进入 REPL
 
 ## 使用截图
 
@@ -51,6 +55,14 @@ uv sync
 
 ```bash
 pip install -e .
+```
+
+如果需要学生或教师模式的可选依赖：
+
+```bash
+pip install -e ".[student]"   # Docker SDK（沙箱执行）
+pip install -e ".[teacher]"   # Rich（终端分析报告）
+pip install -e ".[edu]"       # 两个都装
 ```
 
 ## 快速开始
@@ -109,6 +121,46 @@ uv run educoder --provider anthropic
 
 如果你的服务端对多个兼容接口复用了同一套密钥，`EduCoder` 也支持从 `ANTHROPIC_API_KEY` 回退到 `RIGHT_CODES_API_KEY` 或 `OPENAI_API_KEY`。
 
+## 教育模式
+
+EduCoder 内置了面向编程教学的三种模式，通过 `--mode` 切换。
+
+### 学生模式（student）
+
+学生模式下，EduCoder 会扮演苏格拉底式导师：不给完整代码答案，而是通过引导性问题帮助学生自己思考。学生的代码可以在 Docker 沙箱里安全执行，不会影响宿主环境。
+
+```bash
+uv run educoder --mode student
+```
+
+学生模式的特点：
+
+- **工具限制**：禁用 `write_file`、`patch_file`、`run_shell`，防止学生直接修改工作区文件
+- **沙箱执行**：提供 `run_sandbox_code` 工具，在 Docker 容器中运行 Python 代码（`python:3.13-alpine`，无网络，100MB 内存限制，5 秒超时）
+- **苏格拉底式提示**：系统提示词要求 agent 不输出完整代码，而是给提示和引导问题
+- **隐私保护**：自动过滤学生输入中的邮箱和电话号码
+- **交互记录**：所有交互自动存入 `.educoder/traces.db`（SQLite），供教师模式分析
+
+> 需要安装 Docker 并运行 `pip install -e ".[student]"` 才能使用沙箱功能。
+
+### 教师模式（teacher）
+
+教师模式读取学生交互数据，生成分析报告后直接退出，不进入 REPL。
+
+```bash
+uv run educoder --mode teacher
+uv run educoder --mode teacher --cwd /path/to/student/workspace
+```
+
+报告内容：
+
+- 总交互次数、总会话数、平均每会话提问次数
+- 最近错误列表（帮助学生定位常见问题）
+- 最近交互记录
+- 教学建议
+
+> 需要安装 `pip install -e ".[teacher]"` 以获得 Rich 终端 UI。未安装 Rich 时自动回退为纯文本输出。
+
 ## 常用交互命令
 
 - `/help`：查看内置命令
@@ -135,8 +187,13 @@ uv run educoder --provider anthropic
 
 ## 开发
 
-如果装了 Ruff，可以这样检查：
+代码检查和测试：
 
 ```bash
-uv run ruff check .
+uv run ruff check .                                    # lint
+uv run pytest -q                                       # 全部测试
+uv run pytest tests/test_modes.py -q                   # 教育模式测试
+uv run pytest tests/test_pico.py::test_name -q         # 单个测试
 ```
+
+技术栈：Python 3.10+，零运行时依赖（HTTP 用 `urllib`，数据库用 `sqlite3`，CLI 用 `argparse`）。学生模式可选依赖 Docker SDK，教师模式可选依赖 Rich。不使用 LangChain 或其他 agent 框架，整个 agent 循环是手写的。
