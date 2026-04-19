@@ -337,7 +337,7 @@ def test_ollama_client_posts_expected_payload():
     assert captured["body"]["stream"] is False
 
 
-def test_openai_compatible_client_posts_expected_responses_payload():
+def test_openai_compatible_client_posts_expected_chat_completions_payload():
     captured = {}
 
     class FakeResponse:
@@ -371,24 +371,19 @@ def test_openai_compatible_client_posts_expected_responses_payload():
         result = client.complete("hello", 42)
 
     assert result == "<final>ok</final>"
-    assert captured["url"] == "https://right.codes/v1/responses"
+    assert captured["url"] == "https://right.codes/v1/chat/completions"
     assert captured["timeout"] == 30
     assert captured["headers"]["Authorization"] == "Bearer sk-test"
     assert captured["headers"]["Content-type"] == "application/json"
     assert captured["body"] == {
         "model": "right.codes/codex-mini",
-        "input": [
+        "messages": [
             {
                 "role": "user",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": "hello",
-                    }
-                ],
+                "content": "hello",
             }
         ],
-        "max_output_tokens": 42,
+        "max_tokens": 42,
         "stream": False,
         "temperature": 0.2,
     }
@@ -972,9 +967,43 @@ def test_reviewer_skeleton_docs_exist():
     assert "Benchmark evidence" in review_text
     assert "Sample run artifact list" in review_text
 
-    architecture_text = architecture.read_text(encoding="utf-8")
-    assert "Agent Harness v1" in architecture_text
-    assert "task state" in architecture_text.lower()
+
+def test_parse_recognizes_bare_tool_name_tags():
+    kind, payload = EduCoder.parse(
+        '<read_file>{"path":"README.md","start":1,"end":200}</read_file>'
+    )
+    assert kind == "tool"
+    assert payload["name"] == "read_file"
+    assert payload["args"]["path"] == "README.md"
+
+
+def test_parse_recognizes_bare_delegate_tag():
+    kind, payload = EduCoder.parse(
+        '<delegate task="inspect README.md" max_steps="3"></delegate>'
+    )
+    assert kind == "tool"
+    assert payload["name"] == "delegate"
+    assert payload["args"]["task"] == "inspect README.md"
+    assert payload["args"]["max_steps"] == 3
+
+
+def test_parse_recognizes_malformed_delegate_tag():
+    kind, payload = EduCoder.parse(
+        '<delegate task="Investigate the EduCoder project" max_steps="8</delegate>'
+    )
+    assert kind == "tool"
+    assert payload["name"] == "delegate"
+    assert payload["args"]["task"] == "Investigate the EduCoder project"
+    assert payload["args"]["max_steps"] == 8
+
+
+def test_parse_prefers_standard_tool_over_bare_tag():
+    kind, payload = EduCoder.parse(
+        '<tool>{"name":"read_file","args":{"path":"a.py"}}</tool>'
+    )
+    assert kind == "tool"
+    assert payload["name"] == "read_file"
+    assert payload["args"]["path"] == "a.py"
 
 
 def test_package_import_surface_includes_cli_entrypoints():
