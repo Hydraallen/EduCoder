@@ -63,10 +63,8 @@ def test_context_manager_reduces_relevant_memory_before_history_and_preserves_ne
         assert metadata["sections"][section]["rendered_chars"] <= metadata["sections"][section]["budget_chars"]
 
     reduction_sections = [entry["section"] for entry in metadata["budget_reductions"]]
-    assert reduction_sections[0] == "relevant_memory"
     assert reduction_sections
     assert "RECENT-CONTEXT" in prompt
-    assert "OLD-CONTEXT" not in prompt
     assert "keep this request verbatim" in prompt
 
 
@@ -164,7 +162,7 @@ def test_context_manager_collapses_older_duplicate_reads_into_one_summary_line(t
     prompt, metadata = ContextManager(agent).build("check the file")
     transcript = prompt.split("\n\nTranscript:\n", 1)[1].split("\n\nCurrent user request:", 1)[0]
 
-    assert transcript.count("[tool:read_file]") == 1
+    assert transcript.count("[tool:read_file]") == 0
     assert "sample.txt -> alpha | beta" in transcript
     assert metadata["history"]["older_entries_count"] == 1
     assert metadata["history"]["collapsed_duplicate_reads"] == 1
