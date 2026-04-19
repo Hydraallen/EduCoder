@@ -10,6 +10,7 @@ import os
 import shutil
 import sys
 import textwrap
+from pathlib import Path
 
 from .models import AnthropicCompatibleModelClient, OllamaModelClient, OpenAICompatibleModelClient
 from .runtime import EduCoder, SessionStore
@@ -52,6 +53,9 @@ DEFAULT_OPENAI_MODEL = "gpt-5.4"
 DEFAULT_OPENAI_BASE_URL = "https://www.right.codes/codex/v1"
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_ANTHROPIC_BASE_URL = "https://www.right.codes/claude/v1"
+LEGACY_SECRET_ENV_NAMES_VAR = "MINI_CODING_AGENT_SECRET_ENV_NAMES"
+SECRET_ENV_NAMES_VAR = "PICO_SECRET_ENV_NAMES"
+EDUCODER_SECRET_ENV_NAMES_VAR = "EDUCODER_SECRET_ENV_NAMES"
 
 
 def _effective_model(args, provider):
@@ -81,6 +85,23 @@ def _first_env(*names):
         if value:
             return value
     return ""
+
+
+def _configured_secret_names(args):
+    configured_secret_names = set(DEFAULT_SECRET_ENV_NAMES)
+    configured_secret_names.update(str(name).upper() for name in args.secret_env_names)
+    extra_names = os.environ.get(EDUCODER_SECRET_ENV_NAMES_VAR, "")
+    if not extra_names.strip():
+        extra_names = os.environ.get(SECRET_ENV_NAMES_VAR, "")
+    if not extra_names.strip():
+        extra_names = os.environ.get(LEGACY_SECRET_ENV_NAMES_VAR, "")
+    if extra_names.strip():
+        configured_secret_names.update(
+            item.strip().upper()
+            for item in extra_names.split(",")
+            if item.strip()
+        )
+    return sorted(configured_secret_names)
 
 
 def _build_model_client(args):
@@ -191,15 +212,7 @@ def build_agent(args):
 
         run_teacher_mode(args)
         raise SystemExit(0)
-    configured_secret_names = set(DEFAULT_SECRET_ENV_NAMES)
-    configured_secret_names.update(str(name).upper() for name in args.secret_env_names)
-    extra_names = os.environ.get("PICO_SECRET_ENV_NAMES", "")
-    if extra_names.strip():
-        configured_secret_names.update(
-            item.strip().upper()
-            for item in extra_names.split(",")
-            if item.strip()
-        )
+    configured_secret_names = _configured_secret_names(args)
     workspace = WorkspaceContext.build(args.cwd)
     store = SessionStore(workspace.repo_root + "/.educoder/sessions")
     model = _build_model_client(args)
@@ -215,7 +228,7 @@ def build_agent(args):
             approval_policy=args.approval,
             max_steps=args.max_steps,
             max_new_tokens=args.max_new_tokens,
-            secret_env_names=sorted(configured_secret_names),
+            secret_env_names=configured_secret_names,
             mode=mode,
         )
     return EduCoder(
@@ -225,7 +238,7 @@ def build_agent(args):
         approval_policy=args.approval,
         max_steps=args.max_steps,
         max_new_tokens=args.max_new_tokens,
-        secret_env_names=sorted(configured_secret_names),
+        secret_env_names=configured_secret_names,
         mode=mode,
     )
 
@@ -269,7 +282,36 @@ def build_arg_parser():
     return parser
 
 
+def load_dotenv(path=None):
+    """从 .env 文件加载环境变量，已存在的环境变量不会被覆盖。
+
+    支持 KEY=VALUE 格式，忽略 # 注释和空行。
+    值可以用单引号或双引号包裹，尾部注释在引号外时忽略。
+    """
+    if path is None:
+        path = Path.cwd() / ".env"
+    path = Path(path)
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        key = key.strip()
+        if not key or key.startswith("#"):
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        if key not in os.environ:
+            os.environ[key] = value
+
+
 def main(argv=None):
+    load_dotenv()
     args = build_arg_parser().parse_args(argv)
     agent = build_agent(args)
 
