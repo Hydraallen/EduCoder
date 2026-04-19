@@ -80,10 +80,7 @@ class OllamaModelClient:
 
 
 def _normalize_versioned_base_url(base_url):
-    base = str(base_url).rstrip("/")
-    if not base.endswith("/v1"):
-        base += "/v1"
-    return base
+    return str(base_url).rstrip("/")
 
 
 def _extract_openai_text(data):
@@ -229,48 +226,30 @@ class OpenAICompatibleModelClient:
         self.temperature = temperature
         self.timeout = timeout
         # 当前只在明确支持 prompt cache 语义的后端上启用这条链路，
-        # 避免对不支持的后端传一个“看起来统一、其实没意义”的伪参数。
+        # 避免对不支持的后端传一个"看起来统一、其实没意义"的伪参数。
         self.supports_prompt_cache = any(host in self.base_url for host in ("openai.com", "right.codes"))
         self.last_completion_metadata = {}
 
     def complete(self, prompt, max_new_tokens, prompt_cache_key=None, prompt_cache_retention=None):
-        """向 OpenAI-compatible `/responses` 接口发起一次模型调用。
+        """OpenAI-compatible /chat/completions call.
 
-        为什么存在：
-        runtime 不应该知道 HTTP 细节、SSE 细节、usage 字段长什么样，
-        更不应该自己去判断 prompt cache 参数要不要带。这个函数把这些后端
-        细节都包起来，对上层暴露统一的 `complete()` 行为。
-
-        输入 / 输出：
-        - 输入：完整 prompt、最大输出 token，以及可选的 prompt cache 参数
-        - 输出：模型最终文本；同时把 usage / cached_tokens 等元数据写进
-          `self.last_completion_metadata`
-
-        在 agent 链路里的位置：
-        它位于 `EduCoder.ask()` 的模型调用阶段，是稳定前缀缓存复用链路真正
-        落到 provider API 的地方。
+        Wraps HTTP details, SSE parsing, and usage/cache metadata extraction
+        behind a uniform complete() interface for the runtime.
         """
         self.last_completion_metadata = {}
         payload = {
             "model": self.model,
-            "input": [
+            "messages": [
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": prompt,
-                        }
-                    ],
+                    "content": prompt,
                 }
             ],
-            "max_output_tokens": max_new_tokens,
+            "max_tokens": max_new_tokens,
             "stream": False,
         }
         if self.temperature is not None:
             payload["temperature"] = self.temperature
-        # runtime 传入的是“稳定前缀”的签名，而不是整段 prompt 的签名。
-        # 这样缓存复用针对的是稳定段，不会因为动态 history 每轮变化而失效。
         if self.supports_prompt_cache and prompt_cache_key:
             payload["prompt_cache_key"] = prompt_cache_key
         if self.supports_prompt_cache and prompt_cache_retention:
@@ -281,7 +260,7 @@ class OpenAICompatibleModelClient:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         request = urllib.request.Request(
-            self.base_url + "/responses",
+            self.base_url + "/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
             headers=headers,
             method="POST",
@@ -291,8 +270,8 @@ class OpenAICompatibleModelClient:
             try:
                 with urllib.request.urlopen(request, timeout=self.timeout) as response:
                     body_text = response.read().decode("utf-8")
-                    headers = getattr(response, "headers", {}) or {}
-                    content_type = headers.get("Content-Type", "")
+                    resp_headers = getattr(response, "headers", {}) or {}
+                    content_type = resp_headers.get("Content-Type", "")
                 break
             except urllib.error.HTTPError as exc:
                 body = exc.read().decode("utf-8", errors="replace")
@@ -310,13 +289,9 @@ class OpenAICompatibleModelClient:
                     f"Model: {self.model}"
                 ) from exc
 
-        # 有些兼容后端返回普通 JSON，有些返回 SSE。
-        # 这里两种都接住，并尽量统一抽取文本和 usage/cache 元数据。
         if content_type.startswith("text/event-stream") or body_text.lstrip().startswith("data:"):
             text, response_data = _extract_openai_response_from_sse(body_text)
             if isinstance(response_data, dict) and response_data:
-                # 这些元数据会一路传回 runtime，进入 trace 和 report，
-                # 用来观察 prompt cache 是否真的命中。
                 self.last_completion_metadata = {
                     "prompt_cache_supported": self.supports_prompt_cache,
                     "prompt_cache_key": prompt_cache_key,
